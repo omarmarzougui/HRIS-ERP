@@ -30,8 +30,15 @@ export class User {
   @Column()
   password: string;
 
-  @Column({ default: 'employee' }) // roles: admin, hr, manager, employee
-  role: string;
+  @Column({
+    type: 'enum',
+    enum: UserRole,
+    default: UserRole.EMPLOYEE,
+  })
+  role: UserRole;
+
+  @Column('simple-array', { nullable: true })
+  permissions: string[];
 
   @Column({ default: true })
   isActive: boolean;
