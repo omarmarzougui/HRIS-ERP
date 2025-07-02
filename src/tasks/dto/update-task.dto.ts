@@ -11,4 +11,5 @@ export class UpdateTaskDto {
   actualHours?: number;
   comments?: string;
   tags?: string[];
-} 
+  completedDate?: Date;
+}
