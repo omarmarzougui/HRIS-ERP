@@ -4,7 +4,9 @@ import {
   Entity,
   PrimaryGeneratedColumn,
   UpdateDateColumn,
+  ManyToOne,
 } from 'typeorm';
+import { Department } from '../../departments/entities/department.entity';
 
 export enum UserRole {
   ADMIN = 'admin',
@@ -42,6 +44,11 @@ export class User {
 
   @Column({ default: true })
   isActive: boolean;
+
+  @ManyToOne(() => Department, (department) => department.employees, {
+    nullable: true,
+  })
+  department: Department;
 
   @CreateDateColumn()
   createdAt: Date;

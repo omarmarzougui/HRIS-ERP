@@ -13,34 +13,55 @@ export class AuthService {
     private readonly jwtService: JwtService,
   ) {}
 
-  async validateUser(email: string, password: string): Promise<any> {
+  async validateUser(
+    email: string,
+    password: string,
+  ): Promise<{
+    email: string;
+    id: string;
+    role: string;
+    permissions: string[];
+  } | null> {
     const user = await this.usersService.findByEmail(email);
-    
-    if (user && await bcrypt.compare(password, user.password)) {
+
+    if (user && (await bcrypt.compare(password, user.password))) {
       const { password, ...result } = user;
       return result;
     }
     return null;
   }
 
-  async login(user: any) {
-    // Get default permissions for the user's role
+  async login(user: {
+    email: string;
+    id: string;
+    role: string;
+    permissions?: string[];
+    firstName?: string;
+    lastName?: string;
+  }): Promise<{
+    access_token: string;
+    refresh_token: string;
+    expires_in: number;
+    user: {
+      id: string;
+      email: string;
+      firstName?: string;
+      lastName?: string;
+      role: string;
+      permissions: string[];
+    };
+  }> {
     const defaultPermissions = ROLE_PERMISSIONS[user.role] || [];
-    
-    // Use user's custom permissions if available, otherwise use default permissions
     const userPermissions = user.permissions || defaultPermissions;
-    
-    const payload = { 
-      email: user.email, 
+
+    const payload = {
+      email: user.email,
       sub: user.id,
       role: user.role,
       permissions: userPermissions,
     };
-    
-    // Generate access token
+
     const access_token = this.jwtService.sign(payload);
-    
-    // Generate refresh token with longer expiration
     const refresh_token = this.jwtService.sign(payload, {
       expiresIn: refreshTokenConfig.expiresIn,
     });
@@ -48,7 +69,7 @@ export class AuthService {
     return {
       access_token,
       refresh_token,
-      expires_in: 900, // 15 minutes in seconds
+      expires_in: 900,
       user: {
         id: user.id,
         email: user.email,
@@ -60,41 +81,59 @@ export class AuthService {
     };
   }
 
-  async refreshToken(refresh_token: string) {
-    try {
-      // Verify the refresh token
-      const payload = this.jwtService.verify(refresh_token);
-      
-      // Generate new access token
-      const access_token = this.jwtService.sign({
-        email: payload.email,
-        sub: payload.sub,
-        role: payload.role,
-        permissions: payload.permissions,
-      });
+  async refreshToken(
+    refresh_token: string,
+  ): Promise<{ access_token: string; expires_in: number }> {
+    const payload = this.jwtService.verify(refresh_token);
+    const access_token = this.jwtService.sign({
+      email: payload.email,
+      sub: payload.sub,
+      role: payload.role,
+      permissions: payload.permissions,
+    });
 
-      return {
-        access_token,
-        expires_in: 900, // 15 minutes in seconds
-      };
-    } catch (error) {
-      throw new UnauthorizedException('Invalid refresh token');
-    }
+    return {
+      access_token,
+      expires_in: 900,
+    };
   }
 
-  async register(createUserDto: CreateUserDto) {
-    // Hash the password before saving
+  async register(
+    createUserDto: CreateUserDto,
+  ): Promise<{
+    id: string;
+    email: string;
+    role: string;
+    permissions: string[];
+  }> {
     const hashedPassword = await bcrypt.hash(createUserDto.password, 10);
-    
-    // Get default permissions for the user's role
-    const defaultPermissions = ROLE_PERMISSIONS[createUserDto.role] || ROLE_PERMISSIONS.employee;
-    
+    const defaultPermissions =
+      ROLE_PERMISSIONS[createUserDto.role as keyof typeof ROLE_PERMISSIONS] ||
+      [];
+
     const userWithHashedPassword = {
       ...createUserDto,
       password: hashedPassword,
       permissions: defaultPermissions,
     };
-    
+
     return this.usersService.create(userWithHashedPassword);
+  }
+
+  async validateToken(
+    token: string,
+  ): Promise<{
+    email: string;
+    id: string;
+    role: string;
+    permissions: string[];
+  } | null> {
+    try {
+      const decoded = this.jwtService.verify(token);
+      const user = await this.usersService.findByEmail(decoded.email);
+      return user ? { ...user, permissions: decoded.permissions } : null;
+    } catch {
+      throw new UnauthorizedException('Invalid token');
+    }
   }
 }
